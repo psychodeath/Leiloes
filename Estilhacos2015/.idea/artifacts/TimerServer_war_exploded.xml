@@ -1,0 +1,16 @@
+<component name="ArtifactManager">
+  <artifact type="exploded-war" name="TimerServer:war exploded">
+    <output-path>$PROJECT_DIR$/TimerServer/target/timerServer</output-path>
+    <root id="root">
+      <element id="directory" name="WEB-INF">
+        <element id="directory" name="classes">
+          <element id="module-output" name="TimerServer" />
+        </element>
+      </element>
+      <element id="directory" name="META-INF">
+        <element id="file-copy" path="$PROJECT_DIR$/TimerServer/target/MANIFEST.MF" />
+      </element>
+      <element id="javaee-facet-resources" facet="TimerServer/web/Web" />
+    </root>
+  </artifact>
+</component>
