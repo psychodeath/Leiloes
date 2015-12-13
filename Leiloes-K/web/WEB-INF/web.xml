@@ -19,6 +19,16 @@
         <servlet-name>Download</servlet-name>
         <url-pattern>/download</url-pattern>
     </servlet-mapping>
+
+    <servlet>
+        <servlet-name>ResetParserState</servlet-name>
+        <servlet-class>leiloes.ResetParserState</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ResetParserState</servlet-name>
+        <url-pattern>/resetparser</url-pattern>
+    </servlet-mapping>
+
     <welcome-file-list>
         <welcome-file>index.html</welcome-file>
     </welcome-file-list>

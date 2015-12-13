@@ -19,6 +19,7 @@ public class OfyHelper implements ServletContextListener {
         // request.
         System.out.println("Initializing objectify - registering Leilao class");
         ObjectifyService.register(Leilao.class);
+        ObjectifyService.register(ParserState.class);
     }
 
     public void contextDestroyed(ServletContextEvent event) {

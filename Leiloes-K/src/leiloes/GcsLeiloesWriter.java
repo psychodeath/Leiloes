@@ -8,7 +8,7 @@ import java.nio.channels.Channels;
 
 public class GcsLeiloesWriter {
 
-	public static final String BUCKETNAME = "scrapingbucket";
+	public static final String BUCKETNAME = "bucket_leiloes";
     public static final String FILENAME = "resultsVendas.csv";
     
     private PrintWriter writer;
@@ -18,22 +18,25 @@ public class GcsLeiloesWriter {
 		outputChannel = null;
 		GcsFilename fileName = new GcsFilename(BUCKETNAME,FILENAME);
 
-        final GcsService gcsService = GcsServiceFactory.createGcsService(
-                new RetryParams.Builder()
-                    .initialRetryDelayMillis(10)
-                    .retryMaxAttempts(10)
-                    .totalRetryPeriodMillis(15000)
-                    .build()
-        );
-        
-        //GcsFileOptions.Builder gcsOptionsBuilder = new GcsFileOptions.Builder();
-        
-        //gcsOptionsBuilder.contentEncoding("ISO-8859-1");
+		final GcsService gcsService;
+
+		gcsService = GcsServiceFactory.createGcsService(
+				new RetryParams.Builder()
+						.initialRetryDelayMillis(200)
+						.retryMaxAttempts(20)
+						.totalRetryPeriodMillis(100000)
+						.build()
+		);
+
+
+		GcsFileOptions.Builder gcsOptionsBuilder = new GcsFileOptions.Builder();
+        gcsOptionsBuilder.contentEncoding("ISO-8859-1");
 
         try {
             // TODO Fix character encoding on generated file
-            //GcsFileOptions gcsFileOptionsConfig = gcsOptionsBuilder.build();
-            outputChannel = gcsService.createOrReplace(fileName, GcsFileOptions.getDefaultInstance());
+            GcsFileOptions gcsFileOptionsConfig = gcsOptionsBuilder.build();
+			outputChannel = gcsService.createOrReplace(fileName, gcsFileOptionsConfig);
+            //outputChannel = gcsService.createOrReplace(fileName, GcsFileOptions.getDefaultInstance());
 
         } catch (IOException e) {
             System.out.println("something went wrong opening an output channel to the GCS service");

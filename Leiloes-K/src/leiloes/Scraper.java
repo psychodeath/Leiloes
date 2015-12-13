@@ -1,6 +1,8 @@
 
 package leiloes;
 
+import javax.jdo.PersistenceManager;
+import javax.jdo.PersistenceManagerFactory;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -13,6 +15,8 @@ import java.util.LinkedList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.google.appengine.repackaged.com.google.datastore.v1.Datastore;
+import com.googlecode.objectify.Key;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -25,6 +29,8 @@ import org.jsoup.select.Elements;
 @SuppressWarnings("serial")
 public class Scraper extends HttpServlet implements Serializable {
 
+    public static final String BASE_URL_TO_SCRAPE = "http://www.e-financas.gov.pt/vendas/consultaVendasCurso.action?tipoConsulta=02&modalidade=&distrito=&concelho=&minimo=++.+++.+++.+++%2C++&maximo=++.+++.+++.+++%2C++&dataMin=&dataMax=";
+
     // TODO code application logic here
     // http://www.e-financas.gov.pt/vendas/consultaVendasCurso.action?page=2&maximo=&concelho=&freguesia=&tipoBem=&dataMax=&dataMin=&distrito=&modalidade=&minimo=&tipoConsulta=XX
     // summary of changes/diff with previous version of csv
@@ -33,11 +39,12 @@ public class Scraper extends HttpServlet implements Serializable {
     // stream articles w/fotos in twitter
     // monitor deadline, post to social networks
     // Google fusion tables with results ...?
+    // JavaScript to show dynamic scraping status? http://www.javaworld.com/article/2076181/web-app-frameworks/dynamic-webpages-with-json.html?page=2
 
     //TESTED:
     //FBConnector facebook = new FBConnector();
 
-	private String WriteLeilaoToGcs(LinkedList<Leilao> leiloes){
+	public static String WriteLeilaoToGcs(LinkedList<Leilao> leiloes){
 		GcsLeiloesWriter glw = new GcsLeiloesWriter();
 		
 		for(Leilao l : leiloes){
@@ -66,99 +73,99 @@ public class Scraper extends HttpServlet implements Serializable {
         return "commit to gcs exited abnormally";
 	}
 	
-    private String parse(){
+    public static boolean parse(ParserState ps){
+
+        String urlToOpen;
+        LinkedList<Leilao> leiloes = ps.getLeiloes();
+        //int previousPage = ps.page;
+        Document doc = ps.getDoc();
+
+        int pag;
+
+        pag = Integer.parseInt(doc.baseUri().substring(doc.baseUri().indexOf("=") + 1, doc.baseUri().indexOf("&")));
+
+        System.out.println("A processar página #" + pag);
+
+        if (pag < ps.getPage()){
+            // beyondEnd = true;
+            ps.setPage(0); // reset state for next run
+            return true;
+        }
+        ps.setPage(pag);
+
+        for (Element e : doc.getElementsByClass("w95")){
+            boolean found = false;
+
+            Leilao leilao = new Leilao();
+
+            Elements tipologia = e.getElementsByClass("info-table-title");
+            if (tipologia.size() > 1){
+
+                leilao.setTipologia(tipologia.get(1).text());
+                String url = tipologia.get(2).getElementsByAttribute("href").first().attr("abs:href");
+
+                leilao.setUrl(url);
+            }
+            else{
+                leilao.setTipologia("n/a");
+                leilao.setUrl("n/a");
+            }
+
+            for (Element imovel : e.getElementsByClass("info-element")){
+                found = true;
+                ArrayList<String> resto = new ArrayList<String>();
+                for (Element infoText : imovel.getElementsByClass("info-element-text")){
+                    resto.add(infoText.text());
+                }
+                // TODO acrescentar resto à bd, ajustar parsing morada (tamanho variável)
+
+            }
+
+            if (found){
+                leiloes.add(leilao);
+            }
+        }
+
+        Element el = doc.getElementsByAttributeValueStarting("href","consultaVendasCurso").last();
+
+        ps.setUrl(el.attr("abs:href"));
+        ps.setLeiloes(leiloes);
+
+        OfyService.ofy().save().entity(ps); // persistir estado na datastore
+
+        if (pag % 25 == 0){         // processar em blocos de 25
+            return true;
+        }
+
+        return false;
+    }
+
+    public static void runScraper(){
+
+        // TODO Obsolete after serializing parsing state!! better not use until refactoring
+
+        ParserState pState = new ParserState();
+        Document doc;
+
         LinkedList<Leilao> leiloes = new LinkedList<>();
 
-        try {
-            Document doc;
-            //StringWriter res = new StringWriter();
+        pState.setUrl("http://www.e-financas.gov.pt/vendas/consultaVendasCurso.action?tipoConsulta=02&modalidade=&distrito=&concelho=&minimo=++.+++.+++.+++%2C++&maximo=++.+++.+++.+++%2C++&dataMin=&dataMax=");
+        do {
+            try {
+                doc = Jsoup.connect(pState.getUrl()).get();
+                pState.setDoc(doc);
+            } catch (IOException e) {
+                System.out.println("Erro a abrir site das finanças");
+                e.printStackTrace();
+                break;
+            }
 
+        } while (!parse(pState));
 
-            // PrintWriter writer = new PrintWriter("file", "ISO-8859-1");
+        WriteLeilaoToGcs(leiloes);
 
+        System.out.println("Parsed and stored up to page " + pState.getPage());
 
-            String urlToOpen = "http://www.e-financas.gov.pt/vendas/consultaVendasCurso.action?tipoConsulta=02&modalidade=&distrito=&concelho=&minimo=++.+++.+++.+++%2C++&maximo=++.+++.+++.+++%2C++&dataMin=&dataMax=";
-
-            int previousPage = 0, pag;
-            boolean beyondEnd = false;
-
-
-            do{
-
-                try {
-                    doc = Jsoup.connect(urlToOpen).get();
-                } catch (IOException e) {
-                    System.out.println("Erro a abrir site das finanças");
-                    e.printStackTrace();
-                    break;
-                }
-
-                // debugging
-                pag = Integer.parseInt(doc.baseUri().substring(doc.baseUri().indexOf("=") + 1, doc.baseUri().indexOf("&")));
-
-                System.out.println("A processar página #" + pag);
-
-                //Entity e = new Entity("leilao");
-
-                if (pag < previousPage){
-                    beyondEnd = true;
-                }
-                previousPage = pag;
-
-                for (Element e : doc.getElementsByClass("w95")){
-                    boolean found = false;
-
-                    Leilao leilao = new Leilao();
-
-                    Elements tipologia = e.getElementsByClass("info-table-title");
-                    if (tipologia.size() > 1){
-
-                        leilao.setTipologia(tipologia.get(1).text());
-                        String url = tipologia.get(2).getElementsByAttribute("href").first().attr("abs:href");
-                        
-                        leilao.setUrl(url);
-                    }
-                    else{
-                    	leilao.setTipologia("n/a");
-                    	leilao.setUrl("n/a");
-                    }
-
-                    for (Element imovel : e.getElementsByClass("info-element")){
-                        found = true;
-                        ArrayList<String> resto = new ArrayList<String>();
-                        for (Element infoText : imovel.getElementsByClass("info-element-text")){
-                            //glw.write(infoText.text() + ";");
-                            resto.add(infoText.text());
-                        }
-                        // TODO acrescentar resto à bd, ajustar parsing morada (tamanho variável)
-
-                    }
-
-                    if (found){
-                        try {
-                            //OfyService.ofy().save().entity(leilao).now();
-                            leiloes.add(leilao);
-                        } catch (Exception e1) {
-                            System.out.println("persistence to datastore failed");
-                            e1.printStackTrace();
-                        }
-
-                    }
-                }
-
-                Element el = doc.getElementsByAttributeValueStarting("href","consultaVendasCurso").last();
-
-                urlToOpen = el.attr("abs:href");
-
-            } while((doc.hasText()) && (!beyondEnd));
-        } catch (Exception ex) {
-            System.out.println("Exception: " + ex.getMessage());
-            Logger.getLogger(Scraper.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        
-        return this.WriteLeilaoToGcs(leiloes);
-        
-        //return "parsing function failed";
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException{
@@ -167,9 +174,50 @@ public class Scraper extends HttpServlet implements Serializable {
         response.setContentType("text/event-stream");
         response.setCharacterEncoding("UTF-8");
 
+
         PrintWriter writer = response.getWriter();
 
-        writer.write(this.parse() + "\n");
+        ParserState pState = new ParserState();
+        Document doc;
+
+        try {
+            pState = OfyService.ofy().load().type(ParserState.class).id(666L).now();
+
+            if((pState == null) || (pState.getPage() == 0)){
+                System.out.println("nothing to retrieve");
+                pState = new ParserState();
+                pState.setUrl(BASE_URL_TO_SCRAPE);
+            } else {
+                System.out.println("retrieved state from datastore");
+                System.out.println("retrieved URL: " + pState.getUrl());
+                System.out.println("retrieved page #: " + pState.getPage());
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        LinkedList<Leilao> leiloes = new LinkedList<>();
+
+        do {
+            try {
+                doc = Jsoup.connect(pState.getUrl()).get();
+                pState.setDoc(doc);
+            } catch (IOException e) {
+                System.out.println("Erro a abrir site das finanças");
+                e.printStackTrace();
+                break;
+            }
+
+        } while (!parse(pState));
+
+        // TODO retirar upload para o GCS e substituir por commit no Google SQL - a criação do CSV deverá ser feita a partir daí
+        // Hipótese 1: caso seja rápido (o suficiente para evitar o timeout) percorrer a DB, fazer o CSV imediatamente a seguir
+        // Hipótese 2: caso contrário, criar helper app noutro sistema, tipo Heroku ou similar...
+
+        WriteLeilaoToGcs(leiloes);
+
+        writer.write("Parsed and stored up to page " + pState.getPage());
 
         writer.flush();
         writer.close();
