@@ -16,10 +16,11 @@ import java.nio.channels.Channels;
 
 /**
  * Created by joaomota on 19/08/15.
+ *
+ * GCS ID: 00b4903a974efebc6b8246ce86a8da79b05d0abd3e820b101a768cece8d767ea
  */
 public class DownloadResults extends HttpServlet {
-    public static final String BUCKETNAME = "scrapingbucket";
-    public static final String FILENAME = "resultsVendas.csv";
+
     private static final int BUFFER_SIZE = 2 * 1024 * 1024;
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -31,7 +32,7 @@ public class DownloadResults extends HttpServlet {
                         .build()
         );
 
-        GcsFilename fileName = new GcsFilename(BUCKETNAME,FILENAME);
+        GcsFilename fileName = new GcsFilename(GcsLeiloesWriter.BUCKETNAME,GcsLeiloesWriter.FILENAME);
 
         int fileSize;
         try {
@@ -42,7 +43,7 @@ public class DownloadResults extends HttpServlet {
                 response.setContentType("application/force-download");
                 response.setContentLength(fileSize);
                 response.setHeader("Content-Transfer-Encoding", "binary");
-                response.setHeader("Content-Disposition","attachment; filename=\"" + FILENAME + "\"");
+                response.setHeader("Content-Disposition","attachment; filename=\"" + GcsLeiloesWriter.FILENAME + "\"");
                 copy(Channels.newInputStream(readChannel), response.getOutputStream());
             }
         } catch (NullPointerException e) {

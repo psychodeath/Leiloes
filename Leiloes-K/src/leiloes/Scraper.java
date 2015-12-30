@@ -32,6 +32,7 @@ public class Scraper extends HttpServlet implements Serializable {
     public static final String BASE_URL_TO_SCRAPE = "http://www.e-financas.gov.pt/vendas/consultaVendasCurso.action?tipoConsulta=02&modalidade=&distrito=&concelho=&minimo=++.+++.+++.+++%2C++&maximo=++.+++.+++.+++%2C++&dataMin=&dataMax=";
 
     // TODO code application logic here
+    // ****** Google SQL: https://cloud.google.com/appengine/docs/java/cloud-sql/
     // http://www.e-financas.gov.pt/vendas/consultaVendasCurso.action?page=2&maximo=&concelho=&freguesia=&tipoBem=&dataMax=&dataMin=&distrito=&modalidade=&minimo=&tipoConsulta=XX
     // summary of changes/diff with previous version of csv
     // cron job (google has it) to scrape & parse (http://www.mkyong.com/google-app-engine/cron-job-on-google-app-engine-for-java/)
@@ -43,6 +44,9 @@ public class Scraper extends HttpServlet implements Serializable {
 
     //TESTED:
     //FBConnector facebook = new FBConnector();
+
+    // *** ALTERNATIVA: https://github.com/google/google-apps-script-samples/blob/master/bibstro/datastore.gs
+    // ** https://script.google.com/d/1WPqlFxl5_UIATSTI3GRD9PaBulbVen8MOmFwcAkZ60A_V-HqiKToIX21/edit?usp=drive_web
 
 	public static String WriteLeilaoToGcs(LinkedList<Leilao> leiloes){
 		GcsLeiloesWriter glw = new GcsLeiloesWriter();
@@ -62,8 +66,8 @@ public class Scraper extends HttpServlet implements Serializable {
 		
         try {            
             glw.waitForWrites();
-            System.out.println("finished writing file to GCS");
-
+            System.out.println("finished writing file to GCS : " + leiloes.size() + " records written.");
+            glw.close();
             return "Tamanho da lista de leilões: " + leiloes.size();
         } catch (IOException e) {
             System.out.println("something went wrong finalizing writes to output channel");
@@ -215,7 +219,7 @@ public class Scraper extends HttpServlet implements Serializable {
         // Hipótese 1: caso seja rápido (o suficiente para evitar o timeout) percorrer a DB, fazer o CSV imediatamente a seguir
         // Hipótese 2: caso contrário, criar helper app noutro sistema, tipo Heroku ou similar...
 
-        WriteLeilaoToGcs(leiloes);
+        WriteLeilaoToGcs(pState.getLeiloes());      // Problema: só vai escrever o último bloco processado...
 
         writer.write("Parsed and stored up to page " + pState.getPage());
 

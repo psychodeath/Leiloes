@@ -3,6 +3,7 @@ package leiloes;
 import com.google.appengine.tools.cloudstorage.*;
 
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.nio.channels.Channels;
 
@@ -46,6 +47,17 @@ public class GcsLeiloesWriter {
         writer = new PrintWriter(Channels.newWriter(outputChannel, "ISO-8859-1"));
         
         writer.println("Tipologia;URL;Número;Preço base;Data limite;Serviço de Finanças;Estado;Modalidade");
+		writer.flush();
+
+		// ** FLAW IDENTIFiED ** check https://cloud.google.com/appengine/docs/java/googlecloudstorageclient/getstarted
+/*		try {
+			ObjectOutputStream oout = new ObjectOutputStream(Channels.newOutputStream(outputChannel));
+
+			oout.write();
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.out.println("something went wrong creating the object output stream");
+		}*/
 	}
 	
 	public void write(String txt){
